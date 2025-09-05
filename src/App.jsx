@@ -1,19 +1,14 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from '/vite.svg'
-import './App.css'
-import NavBar from './components/NavBar'
-import ItemListContainer from './components/ItemListContainer'
+import NavBar from "./components/NavBar/NavBar";
+import ItemListContainer from "./components/ItemListContainer/ItemListContainer";
+import "./App.css";
 
-function App() {
-  const [count, setCount] = useState(0)
-
+export default function App() {
   return (
     <>
       <NavBar />
-      <ItemListContainer greeting="Bienvenidos a Mastecno" />
+      <main className="page">
+        <ItemListContainer greeting="¡Bienvenido a Mastecno!" />
+      </main>
     </>
-  )
+  );
 }
-
-export default App

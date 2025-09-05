@@ -1,0 +1,31 @@
+.custom-navbar {
+  width: 100%;
+  background: linear-gradient(90deg, #1e3c72, #2a5298);
+  padding: 0.6rem 1rem;
+}
+
+.custom-navbar .navbar-brand span {
+  color: #fff;
+  font-weight: 600;
+  font-size: 1.2rem;
+  letter-spacing: 0.5px;
+}
+
+/* Menú como botones */
+.nav-buttons .nav-btn {
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  transition: all 0.2s ease;
+}
+.nav-buttons .nav-btn:hover {
+  background-color: #f8f9fa;
+  color: #2a5298;
+  transform: translateY(-1px);
+}
+
+/* Fijo arriba */
+header {
+  position: sticky;
+  top: 0;
+  z-index: 1030;
+}

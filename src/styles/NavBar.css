@@ -1,0 +1,35 @@
+/* Fondo elegante con gradiente */
+.custom-navbar {
+  background: linear-gradient(90deg, #1e3c72, #2a5298); /* azul elegante */
+  padding: 0.6rem 1rem;
+}
+
+/* Marca */
+.custom-navbar .navbar-brand span {
+  font-size: 1.2rem;
+  color: #fff;
+  letter-spacing: 0.5px;
+}
+
+/* Botones */
+.nav-btn {
+  padding: 0.5rem 1rem;
+  border-radius: 999px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+/* Hover más delicado */
+.nav-btn:hover {
+  background-color: #f8f9fa;
+  color: #2a5298;
+  transform: translateY(-1px);
+}
+
+/* Ajustes responsivos */
+@media (max-width: 576px) {
+  .nav-buttons {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+}
