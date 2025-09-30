@@ -23,8 +23,6 @@ export default function ItemListContainer({ greeting }) {
           ? await getProductsByCategory(categoryId)
           : await getProducts();
         if (alive) setItems(data);
-        // DEBUG opcional:
-        // console.log("[debug] categoryId:", categoryId, "items:", data);
       } catch (e) {
         if (alive) setError("No pudimos cargar los productos");
       } finally {

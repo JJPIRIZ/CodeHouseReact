@@ -16,7 +16,6 @@ export default function NavBar() {
     (async () => {
       try {
         const products = await getProducts();
-        console.log("[cats] sample products:", products.slice(0, 5)); // debug
 
         // 🔧 Construcción simple y robusta:
         // agrupamos por category (minúsculas) y guardamos el primer label legible
@@ -39,14 +38,12 @@ export default function NavBar() {
     return () => { alive = false; };
   }, []);
 
-  // Logo desde /public respetando base "/MasTecno/"
   const logoSrc = `${import.meta.env.BASE_URL}/images/mastecno.jpg`;
 
   return (
     <header>
       <nav className="navbar navbar-expand-lg custom-navbar shadow-sm">
         <div className="container-fluid position-relative">
-          {/* Marca (izquierda) */}
           <Link className="navbar-brand d-flex align-items-center" to="/">
             <img
               src={logoSrc}
@@ -58,7 +55,6 @@ export default function NavBar() {
             <span>Mastecno</span>
           </Link>
 
-          {/* Toggle móvil */}
           <button
             className="navbar-toggler"
             type="button"
@@ -71,11 +67,8 @@ export default function NavBar() {
             <span className="navbar-toggler-icon"></span>
           </button>
 
-          {/* Centro + derecha */}
           <div className="collapse navbar-collapse" id="navbarNav">
-            {/* MENÚ CENTRADO */}
             <div className="d-flex mx-lg-auto justify-content-center gap-2 nav-buttons">
-              {/* Dropdown Productos */}
               <div className="dropdown">
                 <button
                   className="btn btn-light nav-btn dropdown-toggle"
@@ -86,14 +79,12 @@ export default function NavBar() {
                   Productos
                 </button>
                 <ul className="dropdown-menu">
-                  {/* “Todos” primero */}
                   <li>
                     <NavLink to="/" end className="dropdown-item">
                       Todos
                     </NavLink>
                   </li>
                   <li><hr className="dropdown-divider" /></li>
-                  {/* Categorías dinámicas */}
                   {cats.length === 0 ? (
                     <li><span className="dropdown-item disabled">Sin categorías</span></li>
                   ) : (
@@ -108,12 +99,11 @@ export default function NavBar() {
                 </ul>
               </div>
 
-              {/* Otros botones */}
               <NavLink to="/nosotros" className="btn btn-light nav-btn">Nosotros</NavLink>
               <NavLink to="/contacto" className="btn btn-light nav-btn">Contacto</NavLink>
             </div>
 
-            {/* Carrito (derecha) */}
+
             <div className="ms-lg-3 d-flex justify-content-end">
               <CartWidget />
             </div>
