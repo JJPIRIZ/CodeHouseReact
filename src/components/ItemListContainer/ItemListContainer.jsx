@@ -1,89 +1,65 @@
-import PropTypes from "prop-types";
-import ItemDetail from "../ItemDetail/ItemDetail";
+import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
+import {
+  getProducts,
+  getProductsByCategory,
+} from "../../services/productsService";
+import ItemCard from "../ItemCard/ItemCard";
 
-export default function ItemListContainer({
-  greeting,
-  items = [],
-  categorias = ["Todas"],
-  selectedCategory = "Todas",
-  onSelectCategory = () => {},
-  sortBy = "price-asc",
-  onChangeSort = () => {},
-  searchTerm = "",                 // 🔎
-  onChangeSearchTerm = () => {},   // 🔎
-}) {
+export default function ItemListContainer({ greeting }) {
+  const { categoryId } = useParams();
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setError("");
+
+    (async () => {
+      try {
+        const data = categoryId
+          ? await getProductsByCategory(categoryId)
+          : await getProducts();
+        if (alive) setItems(data);
+        // DEBUG opcional:
+        // console.log("[debug] categoryId:", categoryId, "items:", data);
+      } catch (e) {
+        if (alive) setError("No pudimos cargar los productos");
+      } finally {
+        if (alive) setLoading(false);
+      }
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [categoryId]);
+
+  if (loading) return <p>Cargando...</p>;
+  if (error) return <p className="text-danger">{error}</p>;
+
   return (
     <>
-      {greeting && <h2 className="mb-3">{greeting}</h2>}
+      <h1 className="mb-4">{greeting}</h1>
+      {categoryId && (
+        <p className="text-secondary">
+          Filtrando por: <strong>{categoryId}</strong>
+        </p>
+      )}
 
-      {/* Controles */}
-      <div className="row g-2 align-items-end mb-3">
-        <div className="col-12 col-lg-4">
-          <label className="form-label">Categoría</label>
-          <select
-            className="form-select"
-            value={selectedCategory}
-            onChange={(e) => onSelectCategory(e.target.value)}
-          >
-            {categorias.map((c) => (
-              <option key={c} value={c}>{c}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="col-12 col-lg-4">
-          <label className="form-label">Ordenar por precio</label>
-          <select
-            className="form-select"
-            value={sortBy}
-            onChange={(e) => onChangeSort(e.target.value)}
-          >
-            <option value="price-asc">Menor a mayor</option>
-            <option value="price-desc">Mayor a menor</option>
-          </select>
-        </div>
-
-        {/* 🔎 Buscador */}
-        <div className="col-12 col-lg-4">
-          <label className="form-label">Buscar producto</label>
-          <input
-            type="text"
-            className="form-control"
-            placeholder="Ej: Cargador iPhone"
-            value={searchTerm}
-            onChange={(e) => onChangeSearchTerm(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* Grid de productos */}
-      <div className="row g-3">
-        {items.length > 0 ? (
-          items.map((item) => (
-            <div className="col-12 col-sm-6 col-md-4 col-lg-3" key={item.id}>
-              <ItemDetail item={item} />
+      {items.length === 0 ? (
+        <p>No hay productos para esta categoría.</p>
+      ) : (
+        <div className="row g-3">
+          {items.map((prod) => (
+            <div className="col-12 col-sm-6 col-md-4 col-lg-3" key={prod.id}>
+              <ItemCard item={prod} />
             </div>
-          ))
-        ) : (
-          <div className="col-12">
-            <div className="alert alert-warning">
-              No hay productos para la selección/búsqueda actual.
-            </div>
-          </div>
-        )}
-      </div>
+          ))}
+        </div>
+      )}
     </>
   );
 }
-
-ItemListContainer.propTypes = {
-  greeting: PropTypes.string,
-  items: PropTypes.arrayOf(PropTypes.object),
-  categorias: PropTypes.arrayOf(PropTypes.string),
-  selectedCategory: PropTypes.string,
-  onSelectCategory: PropTypes.func,
-  sortBy: PropTypes.string,
-  onChangeSort: PropTypes.func,
-  searchTerm: PropTypes.string,                // 🔎
-  onChangeSearchTerm: PropTypes.func,          // 🔎
-};
