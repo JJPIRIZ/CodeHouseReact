@@ -5,6 +5,7 @@ import ItemDetailContainer from "./components/ItemDetailContainer/ItemDetailCont
 import NotFound from "./pages/NotFound.jsx";
 import Nosotros from "./pages/Nosotros.jsx";
 import Contacto from "./pages/Contacto.jsx";
+import Cart from "./pages/Cart.jsx";
 
 export default function App() {
   return (
@@ -25,11 +26,13 @@ export default function App() {
           />
 
           {/* Detalle del producto */}
-          <Route path="/item/:id" element={<ItemDetailContainer />} />
+          <Route path="/item/:idOrSlug" element={<ItemDetailContainer />} />
           
           <Route path="/nosotros" element={<Nosotros />} />
           
           <Route path="/contacto" element={<Contacto />} />
+
+          <Route path="/cart" element={<Cart />} /> 
 
           {/* Redirección opcional */}
           <Route path="/home" element={<Navigate to="/" replace />} />

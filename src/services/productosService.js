@@ -32,31 +32,29 @@ const pick = (headerMap, names, fallback) => {
   return fallback;
 };
 
-// 👇 NUEVO: fallback robusto si no detecta cabecera o si no hay datos
+// Fallback por índices fijos (según tu sheet)
+// AHORA incluye Color en la columna 4 (después de Categoría)
 function mapRowByFixedIndexes(r, idx, start) {
-  const nombre    = String(r[0] ?? "").trim();          // Producto
-  const stock     = toInt(r[1]);                        // Cantidad
-  const precio    = toMoney(r[2]);                      // Precio Unitario
-  const categoria = String(r[3] ?? "").trim();          // Categoria
+  const nombre    = String(r[0] ?? "").trim();     // Producto
+  const stock     = toInt(r[1]);                   // Cantidad
+  const precio    = toMoney(r[2]);                 // Precio Unitario
+  const categoria = String(r[3] ?? "").trim();     // Categoria
+  const color     = String(r[4] ?? "").trim();     // Color (NUEVO)
   const id = String(start + idx + 1);
   return {
     id,
     _1: nombre,
     _2: stock,
     _3: precio,
-    Imagen: "",            // la resolvemos luego por nombre de producto
+    Imagen: "",            // la resolvemos luego por nombre si hace falta
     Categoria: categoria,
+    Color: color,          // NUEVO
   };
 }
 
 export async function getProductos(url = CSV_URL) {
   try {
     const { rows, dataStartIndex, headerMap } = await fetchSheet(url);
-
-    // DEBUG
-    // console.log("[sheets] headerMap:", headerMap);
-    // console.log("[sheets] dataStartIndex:", dataStartIndex);
-    // console.log("[sheets] sample rows:", rows.slice(dataStartIndex, dataStartIndex + 3));
 
     // Intento 1: mapear usando cabecera detectada
     let iId        = pick(headerMap, ["id", "codigo", "cod", "sku"], -1);
@@ -65,29 +63,45 @@ export async function getProductos(url = CSV_URL) {
     let iPrecio    = pick(headerMap, ["precio unitario", "precio", "importe", "valor", "_3"], 2);
     let iImagen    = pick(headerMap, ["imagen", "foto", "url"], -1);
     let iCategoria = pick(headerMap, ["categoria", "categoría", "rubro"], 3);
+    let iColor     = pick(headerMap, ["color", "colores"], 4); // 👈 NUEVO: lee "Color"
 
     const start = Number.isInteger(dataStartIndex) ? dataStartIndex : 0;
 
     let items = rows
       .slice(start)
-      .filter((r) => Array.isArray(r) && r.length >= 4) // esperamos al menos 4 cols
+      .filter((r) => Array.isArray(r) && r.length >= 4)
       .map((r, idx) => {
         const nombre    = String(r[iNombre] ?? "").trim();
         const stock     = toInt(r[iStock]);
         const precio    = toMoney(r[iPrecio]);
         const imagen    = iImagen >= 0 ? String(r[iImagen] ?? "").trim() : "";
         const categoria = iCategoria >= 0 ? String(r[iCategoria] ?? "").trim() : "";
+        const color     = iColor >= 0 ? String(r[iColor] ?? "").trim() : ""; // 👈 NUEVO
 
         let id = iId >= 0 ? String(r[iId] ?? "").trim() : "";
         if (!id) id = String(start + idx + 1);
 
-        return { id, _1: nombre, _2: stock, _3: precio, Imagen: imagen, Categoria: categoria };
+        return {
+          id,
+          _1: nombre,
+          _2: stock,
+          _3: precio,
+          Imagen: imagen,
+          Categoria: categoria,
+          Color: color, // 👈 NUEVO
+        };
       })
       .filter((p) => p._1);
+      // DEBUG rápido
+if (items.length) {
+  console.log("[productos] count:", items.length);
+  console.log("[productos] sample:", items[0]);
+} else {
+  console.warn("[productos] vacío");
+}
 
     // Intento 2: si no salió nada, forzar por índices fijos (según tu sheet)
     if (items.length === 0) {
-      // console.warn("[sheets] fallback por índices fijos");
       items = rows
         .slice(start)
         .filter((r) => Array.isArray(r) && r.length >= 4)
@@ -95,8 +109,17 @@ export async function getProductos(url = CSV_URL) {
         .filter((p) => p._1);
     }
 
-    // DEBUG
-    // console.log("[sheets] productos (primeros 3):", items.slice(0, 3));
+    // Alias normalizados para el front:
+    // nombre, precio, imagen, categoria, color (sin romper las claves previas)
+    items = items.map((p) => ({
+      ...p,
+      nombre: p._1,
+      precio: p._3,
+      imagen: p.Imagen,
+      categoria: p.Categoria,
+      color: p.Color || "", // 👈 usado por ItemCard / ItemDetail
+    }));
+
     return items;
   } catch (e) {
     console.error("[sheets] error getProductos:", e);

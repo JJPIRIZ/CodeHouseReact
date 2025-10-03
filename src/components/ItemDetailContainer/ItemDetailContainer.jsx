@@ -1,38 +1,35 @@
-import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { getProductById } from "../../services/productsService";
 import ItemDetail from "../ItemDetail/ItemDetail";
 
 export default function ItemDetailContainer() {
-  const { id } = useParams();
-  const [item, setItem] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const { idOrSlug } = useParams(); // ⬅️ el nombre debe coincidir con la ruta
+  const [producto, setProducto] = useState(null);
+  const [status, setStatus] = useState("loading");
 
   useEffect(() => {
     let alive = true;
-    setLoading(true);
-    setError("");
-
     (async () => {
       try {
-        const data = await getProductById(id);
-        if (alive) setItem(data || null);
-      } catch (e) {
-        if (alive) setError("No pudimos cargar el producto");
-      } finally {
-        if (alive) setLoading(false);
+        const p = await getProductById(idOrSlug);
+        if (alive) {
+          setProducto(p);
+          setStatus("ready");
+        }
+      } catch {
+        if (alive) setStatus("error");
       }
     })();
+    return () => { alive = false; };
+  }, [idOrSlug]);
 
-    return () => {
-      alive = false;
-    };
-  }, [id]);
+  if (status === "loading") return <div className="container py-4">Cargando…</div>;
+  if (!producto) return <div className="container py-4">Producto no encontrado.</div>;
 
-  if (loading) return <p>Cargando detalle...</p>;
-  if (error) return <p className="text-danger">{error}</p>;
-  if (!item) return <p>Producto no encontrado.</p>;
-
-  return <ItemDetail item={item} />;
+  return (
+    <div className="container py-4">
+      <ItemDetail producto={producto} />
+    </div>
+  );
 }

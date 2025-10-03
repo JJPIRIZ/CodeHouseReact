@@ -2,11 +2,8 @@
 import { Link, NavLink } from "react-router-dom";
 import { useEffect, useState } from "react";
 import CartWidget from "../CartWidget/CartWidget";
-import { getProducts } from "../../services/productsService";
+import { getCategories } from "../../services/productsService";
 import "./NavBar.css";
-
-// Capitaliza
-const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : "");
 
 export default function NavBar() {
   const [cats, setCats] = useState([]);
@@ -15,22 +12,8 @@ export default function NavBar() {
     let alive = true;
     (async () => {
       try {
-        const products = await getProducts();
-
-        // 🔧 Construcción simple y robusta:
-        // agrupamos por category (minúsculas) y guardamos el primer label legible
-        const byCat = {};
-        for (const p of products) {
-          const id = String(p.category || "").trim().toLowerCase();
-          if (!id) continue;
-          if (!byCat[id]) {
-            byCat[id] = (p.categoryLabel && String(p.categoryLabel).trim()) || cap(id);
-          }
-        }
-        const list = Object.entries(byCat).map(([id, label]) => ({ id, label }));
-        console.log("[cats] built:", list); // debug
-
-        if (alive) setCats(list);
+        const categories = await getCategories();
+        if (alive) setCats(categories);
       } catch {
         if (alive) setCats([]);
       }
@@ -38,11 +21,14 @@ export default function NavBar() {
     return () => { alive = false; };
   }, []);
 
-  const logoSrc = `${import.meta.env.BASE_URL}/images/mastecno.jpg`;
+  // Asegura base correcta (Vite) y evita dobles barras
+  const BASE = (import.meta.env.BASE_URL || "/").replace(/\/+$/, "/");
+  const logoSrc = `${BASE}images/mastecno.jpg`;
 
   return (
     <header>
-      <nav className="navbar navbar-expand-lg custom-navbar shadow-sm">
+      {/* Sugerencia: agregá navbar-light o navbar-dark según tu background para que se vea el icono del toggler */}
+      <nav className="navbar navbar-expand-lg custom-navbar shadow-sm navbar-light">
         <div className="container-fluid position-relative">
           <Link className="navbar-brand d-flex align-items-center" to="/">
             <img
@@ -68,6 +54,7 @@ export default function NavBar() {
           </button>
 
           <div className="collapse navbar-collapse" id="navbarNav">
+            {/* Menú centrado */}
             <div className="d-flex mx-lg-auto justify-content-center gap-2 nav-buttons">
               <div className="dropdown">
                 <button
@@ -103,9 +90,9 @@ export default function NavBar() {
               <NavLink to="/contacto" className="btn btn-light nav-btn">Contacto</NavLink>
             </div>
 
-
+            {/* Carrito a la derecha */}
             <div className="ms-lg-3 d-flex justify-content-end">
-              <CartWidget />
+              <CartWidget /> {/* ✅ ahora lee el CartContext y muestra badge */}
             </div>
           </div>
         </div>
