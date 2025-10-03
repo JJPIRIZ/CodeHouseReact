@@ -1,7 +1,12 @@
 import "./ItemDetail.css";
 import { Link } from "react-router-dom";
 import { useMemo, useState, useEffect } from "react";
-import useCart from "../../hooks/useCart"; // 👈 usa el context del carrito
+import useCart from "../../hooks/useCart";
+
+// utils
+import { formatARS, parsePriceAR } from "../../utils/pricing";
+import { getStock, stockBadgeVariant } from "../../utils/inventory";
+import { buildImageCandidates } from "../../utils/images";
 
 // Mapa de colores (mismo criterio que en la card)
 const COLOR_MAP = {
@@ -10,21 +15,6 @@ const COLOR_MAP = {
   "rosa": "#ffc0cb", "violeta": "#8a2be2", "lila": "#c8a2c8", "celeste": "#87ceeb",
   "azul": "#1e90ff", "azul oscuro": "#00008b", "verde": "#008000", "verde claro": "#90ee90",
 };
-
-const BASE = (import.meta.env.BASE_URL || "/").replace(/\/+$/, "/");
-
-function formatARS(n) {
-  if (n == null) return "";
-  try {
-    return Number(n).toLocaleString("es-AR", {
-      style: "currency",
-      currency: "ARS",
-      maximumFractionDigits: 0,
-    });
-  } catch {
-    return `$ ${n}`;
-  }
-}
 
 function parseColores(s) {
   if (!s) return [];
@@ -35,64 +25,31 @@ function parseColores(s) {
     .map((c) => ({ label: c, hex: COLOR_MAP[c.toLowerCase()] ?? "#999999" }));
 }
 
-// Soporta links directos o nombres de archivo dentro de /public/images
-function toPublicImage(u) {
-  if (!u) return "";
-  const s = String(u).trim();
-  if (/^https?:\/\//i.test(s)) return s; // ya es URL
-  if (s.startsWith("/")) return `${BASE.replace(/\/$/, "")}${s}`;
-  const clean = s.replace(/^public\//i, "");
-  const path = clean.startsWith("images/") ? clean : `images/${clean}`;
-  return `${BASE}${path}`;
-}
-
-// Genera candidatos por nombre del producto (para casos donde Imagen está vacía)
-function slugify(s) {
-  return String(s ?? "")
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase().trim()
-    .replace(/[^a-z0-9\s.-]/g, "")
-    .replace(/\s+/g, "-");
-}
-function buildNameVariants(nombre) {
-  const raw = String(nombre ?? "").trim();
-  const noAccent = raw.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-  const lower = noAccent.toLowerCase();
-  return Array.from(new Set([
-    raw, noAccent, lower,
-    lower.replace(/\s+/g, "-"),
-    slugify(raw),
-  ])).filter(Boolean);
-}
-function buildImageCandidates({ imagenRaw, nombre }) {
-  const list = [];
-  if (imagenRaw) list.push(toPublicImage(imagenRaw));
-  const exts = ["webp", "jpg", "jpeg", "png", "avif"];
-  for (const n of buildNameVariants(nombre)) {
-    for (const ext of exts) {
-      list.push(`${BASE}images/${n}.${ext}`);
-    }
-  }
-  return Array.from(new Set(list));
-}
-
 export default function ItemDetail({ producto }) {
-  const { addItem } = useCart(); // 👈 acciones del carrito
+  const { addItem } = useCart();
 
   if (!producto) {
     return <div>Producto no encontrado.</div>;
   }
 
-  // Normalizo campos que pueden venir con diferentes nombres
+  // Normalizo campos
   const id        = producto.id ?? producto.ID ?? producto._id ?? producto.codigo ?? producto.Codigo ?? producto.CÓDIGO ?? String(producto._rowId ?? "");
   const nombre    = producto.nombre ?? producto._1 ?? producto.Producto ?? "Producto";
   const categoria = producto.categoria ?? producto.Categoria ?? "";
-  const precioRaw = producto.precio ?? producto._3 ?? producto["Precio Unitario"] ?? producto.Precio ?? null;
-  const precio    = precioRaw != null ? Number(precioRaw) : null;
 
+  // precio robusto
+  const precioRaw = producto.precio ?? producto._3 ?? producto["Precio Unitario"] ?? producto.Precio ?? null;
+  const precio    = parsePriceAR(precioRaw);
+
+  // stock unificado
+  const stock = getStock(producto);
+  const agotado = stock <= 0;
+
+  // Colores
   const coloresRaw = producto.colores ?? producto.Color ?? producto.Colores ?? producto.color ?? "";
   const colores = useMemo(() => parseColores(coloresRaw), [coloresRaw]);
 
+  // Imagen
   const imagenRaw = (producto.imagen ?? producto.Imagen ?? producto.image ?? "").trim();
   const [idx, setIdx] = useState(0);
   const candidates = useMemo(
@@ -102,34 +59,39 @@ export default function ItemDetail({ producto }) {
   useEffect(() => { setIdx(0); }, [candidates.join("|")]);
   const src = idx < candidates.length ? candidates[idx] : null;
 
-  // 👇 Estado para seleccionar color y cantidad
+  // Estado UI
   const [selectedColor, setSelectedColor] = useState(colores[0]?.label ?? "");
   useEffect(() => {
-    // si cambia el set de colores, re-selecciono
     setSelectedColor(colores[0]?.label ?? "");
   }, [colores.map(c => c.label).join("|")]);
 
   const [qty, setQty] = useState(1);
 
+  // No permitir pedir más que el stock / manejar agotado
+  useEffect(() => {
+    if (agotado) setQty(1);
+    else if (qty > stock) setQty(stock);
+  }, [stock, agotado]);
+
   const handleAddToCart = () => {
-    // armo el objeto producto para el carrito
+    if (agotado || precio == null) return;
+
+    const quantity = Math.min(Math.max(1, qty), stock); // guarda final
     const productForCart = {
-      id: id ?? `${nombre}::${selectedColor}`, // fallback si no hay id
+      id: id ?? `${nombre}::${selectedColor}`,
       title: nombre,
       price: precio ?? 0,
-      image: src || "",          // guardo la imagen actual
-      color: selectedColor || undefined, // guardo color si hay
-      // Podrías sumar otras variantes si las tuvieras, ej: variant/talle
+      image: src || "",
+      color: selectedColor || undefined,
     };
-    addItem(productForCart, qty);
-    // opcional: reset cantidad
+    addItem(productForCart, quantity);
     setQty(1);
   };
 
   return (
     <div className="item-detail-card card shadow-sm rounded-4 overflow-hidden">
       <div className="row g-0">
-        {/* Imagen grande, redondeada arriba */}
+        {/* Imagen */}
         <div className="col-12 col-md-6 p-3 p-md-4">
           {src ? (
             <img
@@ -155,17 +117,26 @@ export default function ItemDetail({ producto }) {
 
         {/* Info */}
         <div className="col-12 col-md-6 p-3 p-md-4 d-flex flex-column">
-          {categoria && (
-            <div className="mb-2">
-              <span className="badge text-bg-secondary">{categoria}</span>
-            </div>
-          )}
+          <div className="d-flex gap-2 align-items-center mb-2">
+            {categoria && <span className="badge text-bg-secondary">{categoria}</span>}
+            {agotado && <span className="badge text-bg-danger">Sin stock</span>}
+          </div>
 
           <h2 className="mb-2">{nombre}</h2>
 
           {precio != null && (
-            <p className="fs-4 fw-semibold mb-3">Precio: {formatARS(precio)}</p>
+            <p className="fs-4 fw-semibold mb-2">Precio: {formatARS(precio)}</p>
           )}
+
+          {/* Stock visible */}
+          <div className="d-flex align-items-center gap-2 mb-3">
+            <span className={`badge text-bg-${stockBadgeVariant(stock)}`}>
+              {agotado ? "Sin stock" : `Stock: ${stock}`}
+            </span>
+            {!agotado && stock <= 2 && (
+              <small className="text-muted">¡Últimas unidades!</small>
+            )}
+          </div>
 
           {!!colores.length && (
             <div className="mb-3 p-2 border rounded-3 bg-light">
@@ -211,23 +182,31 @@ export default function ItemDetail({ producto }) {
             <button
               className="btn btn-outline-secondary"
               onClick={() => setQty((n) => Math.max(1, n - 1))}
-              disabled={qty <= 1}
+              disabled={qty <= 1 || agotado}
               aria-label="Restar cantidad"
             >
               −
             </button>
+
             <input
               type="number"
               min={1}
+              max={Math.max(1, stock)} // límite visual
               className="form-control text-center"
               style={{ width: 90 }}
               value={qty}
-              onChange={(e) => setQty(Math.max(1, Number(e.target.value) || 1))}
+              onChange={(e) => {
+                const v = Math.max(1, Number(e.target.value) || 1);
+                setQty(agotado ? 1 : Math.min(v, stock));
+              }}
               aria-label="Cantidad"
+              disabled={agotado}
             />
+
             <button
               className="btn btn-outline-secondary"
-              onClick={() => setQty((n) => n + 1)}
+              onClick={() => setQty((n) => Math.min(stock, n + 1))}
+              disabled={agotado || qty >= stock}
               aria-label="Sumar cantidad"
             >
               +
@@ -238,14 +217,14 @@ export default function ItemDetail({ producto }) {
             <button
               className="btn btn-primary"
               onClick={handleAddToCart}
-              disabled={precio == null} // si no hay precio, prevenimos agregar
+              disabled={precio == null || agotado}
+              title={agotado ? "No hay stock disponible" : "Agregar al carrito"}
             >
               Agregar al carrito
             </button>
             <Link to="/" className="btn btn-outline-secondary">Volver</Link>
           </div>
 
-          {/* space filler */}
           <div className="mt-auto" />
         </div>
       </div>
