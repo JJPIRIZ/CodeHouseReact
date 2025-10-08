@@ -1,92 +1,100 @@
-import { getProductos } from "./productosService";
+import { getAllSafe, getOne, setOne } from "../firebase";
 
-export const slugify = (s) =>
-  String(s ?? "")
-    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase().trim()
-    .replace(/\s+/g, "-")
-    .replace(/[^a-z0-9-]/g, "");
+const COL = "productos";
+const BASE = import.meta.env.BASE_URL || "/";
 
-const toNumberARS = (v) => {
-  if (v == null) return null;
-  let s = String(v).trim();
-  s = s.replace(/\$/g, "").replace(/\s/g, "");
-  if (s.includes(",") && s.includes(".")) s = s.replace(/\./g, "").replace(",", ".");
-  else if (s.includes(",")) s = s.replace(",", ".");
-  const n = parseFloat(s);
-  return Number.isFinite(n) ? n : null;
-};
-
-const normalizeRow = (r) => {
-  const nombre = (r && (r._1 ?? r["Producto"] ?? r.Producto ?? r.nombre ?? r.Nombre)) || "";
-  const stock  = r?._2 ?? r?.Cantidad ?? r?.cantidad ?? null;
-  const precio = toNumberARS(r?._3 ?? r?.["Precio Unitario"] ?? r?.precio);
-  const categoria = (r && (r.Categoria ?? r.categoria)) || "";
-  const colores   = (r && (r.Color ?? r.Colores ?? r.colores)) || "";
-  const imagen    = ((r && (r.Imagen ?? r.imagen)) || "").trim() || null;
-
-  return {
-    id: String(r?.id ?? `${Date.now()}-${Math.random()}`),
-    nombre: String(nombre).trim() || "Producto sin nombre",
-    stock: stock != null ? Number(stock) : null,
-    precio,
-    categoria: String(categoria).trim(),
-    categoriaId: slugify(categoria),
-    colores: String(colores).trim(),
-    imagen,
-    _raw: r,
-  };
-};
-
-const normalizeAll = (rows) => (Array.isArray(rows) ? rows.map(normalizeRow) : []);
-
-export async function getProducts() {
-  const raw = await getProductos();
-  const normalized = normalizeAll(raw);
-  return normalized;
+// Para preferredSrc si querés, la UI usa tus utils para hacer fallback real
+export function imageFromProductName(name) {
+  const safe = encodeURIComponent(String(name ?? "").trim());
+  return `${BASE}images/${safe}.jpg`;
 }
 
-// Busca por id exacto, por slug del nombre, o por SKU/Codigo del raw.
-export async function getProductById(idOrSlug) {
-  const all = await getProducts();
-  const needle = decodeURIComponent(String(idOrSlug ?? "")).trim();
+// ✅ ÚNICA definición
+export function getProductHref(pOrId) {
+  const id =
+    typeof pOrId === "string" || typeof pOrId === "number"
+      ? String(pOrId)
+      : String(pOrId?.id ?? "");
+  if (!id) return "/"; // absoluto
+  return `/item/${encodeURIComponent(id)}`; // absoluto → Router agrega basename
+}
 
-  let found = all.find((p) => String(p.id) === needle);
-  if (found) return found;
+function normalizeColores(v) {
+  if (Array.isArray(v)) return v.filter(Boolean).map((c) => String(c).trim());
+  if (v == null) return [];
+  return String(v)
+    .replace(/[|/;]/g, ",")
+    .split(",")
+    .map((c) => c.trim())
+    .filter(Boolean);
+}
 
-  const nslug = slugify(needle);
-  found = all.find((p) => slugify(p.nombre) === nslug);
-  if (found) return found;
+function normalizeProduct(p) {
+  const coloresArr = normalizeColores(p.colores);
+  const out = {
+    id: p.id,
+    nombre: p.nombre,
+    cantidad: Number(p.cantidad ?? 0),
+    precioUnitario: Number(p.precioUnitario ?? 0),
+    categoria: p.categoria || "",
+    colores: coloresArr,
+    coloresString: coloresArr.join(", "),
+    imageUrl: imageFromProductName(p.nombre),
+  };
+  // aliases
+  out.name = out.nombre;
+  out.stock = out.cantidad;
+  out.price = out.precioUnitario;
+  out.category = out.categoria;
+  out.image = out.imageUrl;
+  out.colors = out.coloresString;
+  return out;
+}
 
-  found = all.find((p) => {
-    const sku = p?._raw?.SKU ?? p?._raw?.Cod ?? p?._raw?.Codigo ?? p?._raw?.codigo;
-    return sku && String(sku).trim() === needle;
+// ---------- Lecturas ----------
+export async function getProductos({ category = null, limit = null } = {}) {
+  const whereEq = [];
+  if (category) whereEq.push(["categoria", "==", category]);
+
+  // Si hay filtro por categoría, no ordenamos en server para evitar índice
+  const data = await getAllSafe(COL, {
+    whereEq,
+    order: category ? null : { field: "nombre", dir: "asc" },
+    limit,
   });
 
-  return found ?? null;
+  return data.map(normalizeProduct);
 }
 
-// Link al detalle: usa id si es “limpio”; si no, slug del nombre
-export function getProductHref(p) {
-  const hasStableId = p?.id && !String(p.id).includes("-");
-  return `/item/${hasStableId ? String(p.id) : slugify(p?.nombre ?? "")}`;
-}
-
-export async function getProductsByCategory(categoryId) {
-  const all = await getProducts();
-  if (!categoryId) return all;
-  const slug = String(categoryId).toLowerCase();
-  return all.filter((p) => p.categoriaId === slug);
+export async function getProductoById(id) {
+  const safeId = String(id ?? "").trim();
+  if (!safeId) return null;
+  const p = await getOne(COL, safeId);
+  return p ? normalizeProduct(p) : null;
 }
 
 export async function getCategories() {
-  const all = await getProducts();
-  const map = new Map();
-  all.forEach((p) => {
-    if (!p.categoriaId) return;
-    if (!map.has(p.categoriaId)) {
-      map.set(p.categoriaId, { id: p.categoriaId, label: p.categoria || p.categoriaId });
-    }
-  });
-  return Array.from(map.values());
+  const all = await getAllSafe(COL);
+  const set = new Set(all.map((p) => p.categoria).filter(Boolean));
+  // Devolvemos { id, label } como acordamos con tu NavBar
+  return Array.from(set).sort((a, b) => a.localeCompare(b))
+    .map((c) => ({ id: c, label: c }));
 }
+
+// ---------- Escrituras ----------
+export async function upsertProducto({ id, nombre, cantidad, precioUnitario, categoria, colores }) {
+  const payload = {
+    nombre: String(nombre).trim(),
+    cantidad: Number(cantidad ?? 0),
+    precioUnitario: Number(precioUnitario ?? 0),
+    categoria: String(categoria ?? "").trim(),
+    colores: normalizeColores(colores),
+  };
+  await setOne(COL, id, payload);
+}
+
+// ---------- Aliases ----------
+export const getProducts = getProductos;
+export const getProductById = getProductoById;
+export async function getProductsByCategory(category) { return getProductos({ category }); }
+export async function getProductosPorCategoria(category) { return getProductos({ category }); }

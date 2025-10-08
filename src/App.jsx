@@ -6,6 +6,7 @@ import NotFound from "./pages/NotFound.jsx";
 import Nosotros from "./pages/Nosotros.jsx";
 import Contacto from "./pages/Contacto.jsx";
 import Cart from "./pages/Cart.jsx";
+import AdminImport from "./pages/AdminImport";
 
 export default function App() {
   return (
@@ -26,7 +27,7 @@ export default function App() {
           />
 
           {/* Detalle del producto */}
-          <Route path="/item/:idOrSlug" element={<ItemDetailContainer />} />
+          <Route path="/item/:id" element={<ItemDetailContainer />} />
           
           <Route path="/nosotros" element={<Nosotros />} />
           
@@ -36,6 +37,8 @@ export default function App() {
 
           {/* Redirección opcional */}
           <Route path="/home" element={<Navigate to="/" replace />} />
+
+          <Route path="/admin/import" element={<AdminImport />} />
 
           {/* 404 */}
           <Route path="*" element={<NotFound />} />

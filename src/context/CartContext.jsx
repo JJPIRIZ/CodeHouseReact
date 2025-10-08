@@ -1,3 +1,4 @@
+// src/context/CartContext.jsx
 import { createContext, useContext, useEffect, useMemo, useReducer } from "react";
 
 const STORAGE_KEY = "mastecno_cart_v1";
@@ -10,13 +11,34 @@ function itemKeyOf(p) {
   return [p.id, p.color ?? "", p.variant ?? ""].join("::");
 }
 
+// 🔧 Normaliza cualquier producto que venga del catálogo/detalle
+function normalizeProductForCart(p = {}) {
+  const id = String(p.id ?? "").trim();
+  const title = String(p.title ?? p.nombre ?? p.name ?? "").trim();
+  const image = String(p.image ?? p.imageUrl ?? "").trim();
+  const color = String(p.color ?? "").trim(); // puede venir vacío y está bien
+  const variant = String(p.variant ?? "").trim();
+  const price = Number(
+    typeof p.price === "number" ? p.price :
+    typeof p.precioUnitario === "number" ? p.precioUnitario :
+    p.price ?? p.precioUnitario ?? 0
+  ) || 0;
+
+  // Dejo también alias por compatibilidad, por si la UI usa nombre/imageUrl
+  const nombre = title || (p.nombre ?? "");
+  const imageUrl = image || (p.imageUrl ?? "");
+
+  return { id, title, price, image, color, variant, nombre, imageUrl };
+}
+
 function reducer(state, action) {
   switch (action.type) {
     case "HYDRATE":
       return action.payload ?? state;
 
     case "ADD_ITEM": {
-      const { product, qty } = action.payload;
+      const { product: raw, qty } = action.payload;
+      const product = normalizeProductForCart(raw);
       const key = itemKeyOf(product);
 
       const items = [...state.items];
@@ -78,7 +100,12 @@ export function CartProvider({ children }) {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (parsed && Array.isArray(parsed.items)) {
-          dispatch({ type: "HYDRATE", payload: parsed });
+          // Normalizo por si viene viejo del storage
+          const fixed = {
+            ...parsed,
+            items: parsed.items.map((i) => ({ ...normalizeProductForCart(i), qty: Number(i.qty || 1) })),
+          };
+          dispatch({ type: "HYDRATE", payload: fixed });
         }
       }
     } catch (err) {
@@ -108,10 +135,14 @@ export function CartProvider({ children }) {
     items: state.items,
     totalItems,
     totalAmount,
-    addItem: (product, qty = 1) => dispatch({ type: "ADD_ITEM", payload: { product, qty } }),
-    removeItem: (product) => dispatch({ type: "REMOVE_ITEM", payload: itemKeyOf(product) }),
-    increment: (product) => dispatch({ type: "INCREMENT", payload: itemKeyOf(product) }),
-    decrement: (product) => dispatch({ type: "DECREMENT", payload: itemKeyOf(product) }),
+    addItem: (product, qty = 1) =>
+      dispatch({ type: "ADD_ITEM", payload: { product, qty } }),
+    removeItem: (product) =>
+      dispatch({ type: "REMOVE_ITEM", payload: itemKeyOf(product) }),
+    increment: (product) =>
+      dispatch({ type: "INCREMENT", payload: itemKeyOf(product) }),
+    decrement: (product) =>
+      dispatch({ type: "DECREMENT", payload: itemKeyOf(product) }),
     setQty: (product, qty) =>
       dispatch({ type: "SET_QTY", payload: { key: itemKeyOf(product), qty } }),
     clear: () => dispatch({ type: "CLEAR" }),

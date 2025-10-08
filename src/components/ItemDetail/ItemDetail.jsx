@@ -1,231 +1,175 @@
-import "./ItemDetail.css";
-import { Link } from "react-router-dom";
-import { useMemo, useState, useEffect } from "react";
-import useCart from "../../hooks/useCart";
-
-// utils
-import { formatARS, parsePriceAR } from "../../utils/pricing";
-import { getStock, stockBadgeVariant } from "../../utils/inventory";
+import { useEffect, useMemo, useState } from "react";
 import { buildImageCandidates } from "../../utils/images";
+import "./ItemDetail.css";
+import { useCartContext as useCart } from "../../context/CartContext.jsx";
 
-// Mapa de colores (mismo criterio que en la card)
-const COLOR_MAP = {
-  "blanco": "#ffffff", "negro": "#000000", "gris": "#808080", "beige": "#f5f5dc",
-  "amarillo": "#ffd700", "naranja": "#ffa500", "rojo": "#ff3b30", "bordo": "#800000",
-  "rosa": "#ffc0cb", "violeta": "#8a2be2", "lila": "#c8a2c8", "celeste": "#87ceeb",
-  "azul": "#1e90ff", "azul oscuro": "#00008b", "verde": "#008000", "verde claro": "#90ee90",
-};
-
-function parseColores(s) {
-  if (!s) return [];
-  return s
-    .split(/,|\/|\|/g)
-    .map((c) => c.trim())
-    .filter(Boolean)
-    .map((c) => ({ label: c, hex: COLOR_MAP[c.toLowerCase()] ?? "#999999" }));
+function parseColores(input) {
+  if (Array.isArray(input)) return input.filter(Boolean);
+  if (input == null) return [];
+  const s = String(input);
+  return s.replace(/[|/;]/g, ",").split(",").map((c) => c.trim()).filter(Boolean);
 }
 
-export default function ItemDetail({ producto }) {
-  const { addItem } = useCart();
+const PLACEHOLDER =
+  "data:image/svg+xml;base64,PHN2ZyB3aWR0aD0nNDAwJyBoZWlnaHQ9JzIyMCcgeG1sbnM9J2h0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnJz48cmVjdCBmaWxsPSIjZWVlIiB3aWR0aD0iMTAwJSIgaGVpZ2h0PSIxMDAlIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGR5PSIuM2VtIiBmb250LXNpemU9IjE0IiB0ZXh0LWFuY2hvcj0ibWlkZGxlIiBmaWxsPSIjOTk5Ij5TaW4gaW1hZ2VuPC90ZXh0Pjwvc3ZnPg==";
 
-  if (!producto) {
-    return <div>Producto no encontrado.</div>;
-  }
+export default function ItemDetail({ product }) {
+  if (!product) return null;
 
-  // Normalizo campos
-  const id        = producto.id ?? producto.ID ?? producto._id ?? producto.codigo ?? producto.Codigo ?? producto.CÓDIGO ?? String(producto._rowId ?? "");
-  const nombre    = producto.nombre ?? producto._1 ?? producto.Producto ?? "Producto";
-  const categoria = producto.categoria ?? producto.Categoria ?? "";
+  const { addItem } = useCart() || {};
 
-  // precio robusto
-  const precioRaw = producto.precio ?? producto._3 ?? producto["Precio Unitario"] ?? producto.Precio ?? null;
-  const precio    = parsePriceAR(precioRaw);
-
-  // stock unificado
-  const stock = getStock(producto);
-  const agotado = stock <= 0;
-
-  // Colores
-  const coloresRaw = producto.colores ?? producto.Color ?? producto.Colores ?? producto.color ?? "";
-  const colores = useMemo(() => parseColores(coloresRaw), [coloresRaw]);
-
-  // Imagen
-  const imagenRaw = (producto.imagen ?? producto.Imagen ?? producto.image ?? "").trim();
-  const [idx, setIdx] = useState(0);
-  const candidates = useMemo(
-    () => buildImageCandidates({ imagenRaw, nombre }),
-    [imagenRaw, nombre]
+  const name = product.nombre ?? product.name ?? "Producto";
+  const categoria = product.categoria ?? product.category ?? "";
+  const stock = Number(product.cantidad ?? product.stock ?? 0);
+  const coloresArr = useMemo(
+    () => parseColores(product.colors ?? product.colores),
+    [product.colors, product.colores]
   );
-  useEffect(() => { setIdx(0); }, [candidates.join("|")]);
-  const src = idx < candidates.length ? candidates[idx] : null;
+  const price =
+    typeof product.price === "number"
+      ? product.price
+      : typeof product.precioUnitario === "number"
+      ? product.precioUnitario
+      : Number(product.price ?? product.precioUnitario) || 0;
 
-  // Estado UI
-  const [selectedColor, setSelectedColor] = useState(colores[0]?.label ?? "");
+  const candidates = useMemo(
+    () =>
+      buildImageCandidates({
+        imagenRaw: product.image ?? product.imageUrl,
+        nombre: name,
+        exts: ["webp", "jpg", "jpeg", "png", "avif"],
+      }),
+    [product.image, product.imageUrl, name]
+  );
+  const [imgIdx, setImgIdx] = useState(0);
+  const imgSrc = candidates[imgIdx] || PLACEHOLDER;
+
+  const [color, setColor] = useState(coloresArr[0] || "");
+  const [qty, setQty] = useState(stock > 0 ? 1 : 0);
+  const [adding, setAdding] = useState(false);
+  const [ok, setOk] = useState(false);
+
   useEffect(() => {
-    setSelectedColor(colores[0]?.label ?? "");
-  }, [colores.map(c => c.label).join("|")]);
+    setColor(coloresArr[0] || "");
+    setQty(stock > 0 ? 1 : 0);
+    setOk(false);
+    setAdding(false);
+  }, [product?.id, stock, coloresArr.join("|")]);
 
-  const [qty, setQty] = useState(1);
+  const canChooseColor = coloresArr.length > 0;
+  const canAdd = stock > 0 && qty > 0 && (!canChooseColor || !!color);
 
-  // No permitir pedir más que el stock / manejar agotado
-  useEffect(() => {
-    if (agotado) setQty(1);
-    else if (qty > stock) setQty(stock);
-  }, [stock, agotado]);
-
-  const handleAddToCart = () => {
-    if (agotado || precio == null) return;
-
-    const quantity = Math.min(Math.max(1, qty), stock); // guarda final
-    const productForCart = {
-      id: id ?? `${nombre}::${selectedColor}`,
-      title: nombre,
-      price: precio ?? 0,
-      image: src || "",
-      color: selectedColor || undefined,
-    };
-    addItem(productForCart, quantity);
-    setQty(1);
+  const handleAdd = () => {
+    if (!addItem || !canAdd) return;
+    setAdding(true);
+    try {
+      // ✅ Siempre incluimos el color dentro del item
+      addItem({ ...product, color }, qty);
+      setOk(true);
+    } catch (e) {
+      console.error("[ItemDetail] addItem error:", e);
+    } finally {
+      setAdding(false);
+    }
   };
 
   return (
-    <div className="item-detail-card card shadow-sm rounded-4 overflow-hidden">
-      <div className="row g-0">
-        {/* Imagen */}
-        <div className="col-12 col-md-6 p-3 p-md-4">
-          {src ? (
+    <div className="container py-3">
+      <div className="row g-4">
+        <div className="col-12 col-md-6">
+          <div className="card position-relative">
             <img
-              src={src}
-              alt={nombre}
-              onError={() => setIdx((i) => i + 1)}
-              style={{
-                width: "100%",
-                height: 360,
-                objectFit: "cover",
-                borderRadius: "1rem",
+              src={imgSrc}
+              alt={name}
+              className="card-img-top itemdetail-img"
+              onError={() => {
+                if (imgIdx < candidates.length) setImgIdx((i) => i + 1);
               }}
             />
-          ) : (
-            <div
-              className="d-flex align-items-center justify-content-center bg-light"
-              style={{ width: "100%", height: 360, borderRadius: "1rem", color: "#999" }}
-            >
-              Sin imagen
-            </div>
-          )}
-        </div>
-
-        {/* Info */}
-        <div className="col-12 col-md-6 p-3 p-md-4 d-flex flex-column">
-          <div className="d-flex gap-2 align-items-center mb-2">
-            {categoria && <span className="badge text-bg-secondary">{categoria}</span>}
-            {agotado && <span className="badge text-bg-danger">Sin stock</span>}
-          </div>
-
-          <h2 className="mb-2">{nombre}</h2>
-
-          {precio != null && (
-            <p className="fs-4 fw-semibold mb-2">Precio: {formatARS(precio)}</p>
-          )}
-
-          {/* Stock visible */}
-          <div className="d-flex align-items-center gap-2 mb-3">
-            <span className={`badge text-bg-${stockBadgeVariant(stock)}`}>
-              {agotado ? "Sin stock" : `Stock: ${stock}`}
-            </span>
-            {!agotado && stock <= 2 && (
-              <small className="text-muted">¡Últimas unidades!</small>
+            {stock <= 0 && (
+              <span className="badge bg-danger itemdetail-badge">Sin stock</span>
             )}
           </div>
+        </div>
 
-          {!!colores.length && (
-            <div className="mb-3 p-2 border rounded-3 bg-light">
-              <div className="small text-muted mb-2">Colores disponibles</div>
-              <div className="d-flex flex-wrap gap-3">
-                {colores.map((c, i) => {
-                  const isActive = selectedColor === c.label;
-                  return (
-                    <button
-                      key={i}
-                      type="button"
-                      className={`text-center btn p-2 ${isActive ? "border-primary" : "border-0"}`}
-                      style={{ width: 86, background: "transparent" }}
-                      onClick={() => setSelectedColor(c.label)}
-                      title={c.label}
-                    >
-                      <span
-                        style={{
-                          width: 32,
-                          height: 32,
-                          display: "inline-block",
-                          borderRadius: 10,
-                          background: c.hex,
-                          border:
-                            c.hex === "#ffffff"
-                              ? "1px solid #d0d0d0"
-                              : "1px solid rgba(0,0,0,0.2)",
-                          boxShadow: isActive ? "0 0 0 3px rgba(13,110,253,.25)" : "none",
-                        }}
-                      />
-                      <div className="mt-1" style={{ fontSize: 12 }}>
-                        {c.label}
-                      </div>
-                    </button>
-                  );
-                })}
+        <div className="col-12 col-md-6">
+          <h3 className="mb-2">{name}</h3>
+
+          <div className="mb-2 d-flex align-items-center gap-2">
+            {categoria && <span className="badge text-bg-secondary">{categoria}</span>}
+            {stock <= 0 && <span className="badge bg-danger">Sin stock</span>}
+          </div>
+
+          <div className="d-flex align-items-center justify-content-between mb-3">
+            <small className="text-muted">Stock: {stock}</small>
+            <strong className="fs-4">${price.toLocaleString("es-AR")}</strong>
+          </div>
+
+          {coloresArr.length > 0 && (
+            <div className="mb-3">
+              <label className="form-label fw-semibold">Color</label>
+              <div className="d-flex flex-wrap gap-2">
+                {coloresArr.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    className={`btn btn-sm ${color === c ? "btn-primary" : "btn-outline-secondary"}`}
+                    onClick={() => setColor(c)}
+                  >
+                    {c}
+                  </button>
+                ))}
               </div>
             </div>
           )}
 
-          {/* Cantidad + Agregar al carrito */}
-          <div className="d-flex align-items-center gap-2 mb-3">
-            <button
-              className="btn btn-outline-secondary"
-              onClick={() => setQty((n) => Math.max(1, n - 1))}
-              disabled={qty <= 1 || agotado}
-              aria-label="Restar cantidad"
-            >
-              −
-            </button>
-
-            <input
-              type="number"
-              min={1}
-              max={Math.max(1, stock)} // límite visual
-              className="form-control text-center"
-              style={{ width: 90 }}
-              value={qty}
-              onChange={(e) => {
-                const v = Math.max(1, Number(e.target.value) || 1);
-                setQty(agotado ? 1 : Math.min(v, stock));
-              }}
-              aria-label="Cantidad"
-              disabled={agotado}
-            />
-
-            <button
-              className="btn btn-outline-secondary"
-              onClick={() => setQty((n) => Math.min(stock, n + 1))}
-              disabled={agotado || qty >= stock}
-              aria-label="Sumar cantidad"
-            >
-              +
-            </button>
+          <div className="mb-3">
+            <label htmlFor="qty" className="form-label fw-semibold">Cantidad</label>
+            <div className="input-group" style={{ maxWidth: 220 }}>
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                onClick={() => setQty((q) => Math.max(1, q - 1))}
+                disabled={stock <= 0 || qty <= 1}
+              >
+                −
+              </button>
+              <input
+                id="qty"
+                type="number"
+                className="form-control text-center"
+                min={1}
+                max={stock}
+                value={qty}
+                onChange={(e) => {
+                  const v = Number(e.target.value || 0);
+                  if (!Number.isFinite(v)) return;
+                  setQty(Math.min(Math.max(1, v), stock));
+                }}
+                disabled={stock <= 0}
+              />
+              <button
+                type="button"
+                className="btn btn-outline-secondary"
+                onClick={() => setQty((q) => Math.min(stock, q + 1))}
+                disabled={stock <= 0 || qty >= stock}
+              >
+                +
+              </button>
+            </div>
+            <div className="form-text">Máximo disponible: {stock}</div>
           </div>
 
-          <div className="d-flex gap-2">
+          <div className="d-grid gap-2">
             <button
-              className="btn btn-primary"
-              onClick={handleAddToCart}
-              disabled={precio == null || agotado}
-              title={agotado ? "No hay stock disponible" : "Agregar al carrito"}
+              className={`btn ${ok ? "btn-success" : "btn-primary"}`}
+              onClick={handleAdd}
+              disabled={!canAdd || adding}
+              title={!canAdd ? "Seleccioná opciones disponibles" : "Agregar al carrito"}
             >
-              Agregar al carrito
+              {ok ? "¡Agregado!" : adding ? "Agregando…" : "Agregar al carrito"}
             </button>
-            <Link to="/" className="btn btn-outline-secondary">Volver</Link>
           </div>
-
-          <div className="mt-auto" />
         </div>
       </div>
     </div>

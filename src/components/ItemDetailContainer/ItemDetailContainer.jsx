@@ -1,35 +1,48 @@
-import { useParams } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { getProductById } from "../../services/productsService";
+import { useParams } from "react-router-dom";
+import { getProductById, getProductoById } from "../../services/productsService";
 import ItemDetail from "../ItemDetail/ItemDetail";
 
 export default function ItemDetailContainer() {
-  const { idOrSlug } = useParams(); // ⬅️ el nombre debe coincidir con la ruta
-  const [producto, setProducto] = useState(null);
-  const [status, setStatus] = useState("loading");
+  const { id } = useParams();
+  const routeId = String(id ?? "").trim();
+
+  const [product, setProduct] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     let alive = true;
+
     (async () => {
+      setLoading(true);
+      setError("");
+
+      if (!routeId) {
+        if (alive) { setError("ID de producto inválido"); setLoading(false); }
+        return;
+      }
+
       try {
-        const p = await getProductById(idOrSlug);
+        const p = (await getProductById(routeId)) ?? (await getProductoById(routeId));
         if (alive) {
-          setProducto(p);
-          setStatus("ready");
+          if (!p) setError("Producto no encontrado");
+          else setProduct(p);
         }
-      } catch {
-        if (alive) setStatus("error");
+      } catch (e) {
+        console.error("[ItemDetailContainer] fetch error:", e);
+        if (alive) setError("No se pudo cargar el producto");
+      } finally {
+        if (alive) setLoading(false);
       }
     })();
+
     return () => { alive = false; };
-  }, [idOrSlug]);
+  }, [routeId]);
 
-  if (status === "loading") return <div className="container py-4">Cargando…</div>;
-  if (!producto) return <div className="container py-4">Producto no encontrado.</div>;
+  if (loading) return <div className="container py-3"><div className="alert alert-secondary">Cargando…</div></div>;
+  if (error)   return <div className="container py-3"><div className="alert alert-danger">{error}</div></div>;
+  if (!product) return null;
 
-  return (
-    <div className="container py-4">
-      <ItemDetail producto={producto} />
-    </div>
-  );
+  return <ItemDetail product={product} />;
 }
