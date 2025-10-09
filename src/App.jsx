@@ -7,6 +7,10 @@ import Nosotros from "./pages/Nosotros.jsx";
 import Contacto from "./pages/Contacto.jsx";
 import Cart from "./pages/Cart.jsx";
 import AdminImport from "./pages/AdminImport";
+import Checkout from "./pages/Checkout";
+import AdminOrders from "./pages/AdminOrders";
+import AdminHome from "./pages/AdminHome";
+import AdminProducts from "./pages/AdminProducts";
 
 export default function App() {
   return (
@@ -35,10 +39,16 @@ export default function App() {
 
           <Route path="/cart" element={<Cart />} /> 
 
+          <Route path="checkout" element={<Checkout />} />
+
+          {/* Admin */}
+          <Route path="/admin" element={<AdminHome />} />
+          <Route path="/admin/orders" element={<AdminOrders />} />
+          <Route path="/admin/import" element={<AdminImport />} />
+          <Route path="/admin/products" element={<AdminProducts />} />
+
           {/* Redirección opcional */}
           <Route path="/home" element={<Navigate to="/" replace />} />
-
-          <Route path="/admin/import" element={<AdminImport />} />
 
           {/* 404 */}
           <Route path="*" element={<NotFound />} />

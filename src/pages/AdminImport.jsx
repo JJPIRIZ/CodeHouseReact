@@ -1,7 +1,9 @@
 // src/pages/AdminImport.jsx
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { Link, Navigate } from "react-router-dom";
 import { batchUpsert } from "../firebase";
 import { fetchProductosFromSheet } from "../services/sheetsService";
+import { isAdminSessionValid, touchAdminSession } from "../utils/adminSession";
 
 // --- Helpers robustos para normalizar ---
 function slug(s) {
@@ -40,6 +42,18 @@ function normalizeColores(v) {
 }
 
 export default function AdminImport() {
+  // ❗ Guard de sesión: si no hay sesión válida, redirige a /admin
+  const [hasSession, setHasSession] = useState(isAdminSessionValid());
+  useEffect(() => {
+    if (isAdminSessionValid()) {
+      touchAdminSession();
+      setHasSession(true);
+    } else {
+      setHasSession(false);
+    }
+  }, []);
+  if (!hasSession) return <Navigate to="/admin" replace />;
+
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState("");
   const [preview, setPreview] = useState([]);
@@ -64,6 +78,7 @@ export default function AdminImport() {
   );
 
   const cargarPreview = async () => {
+    touchAdminSession();
     setStatus("loading");
     setError("");
     try {
@@ -77,6 +92,7 @@ export default function AdminImport() {
   };
 
   const importar = async () => {
+    touchAdminSession();
     if (!normalized.length) {
       setError("No hay datos para importar. Cargá el preview primero.");
       return;
@@ -102,7 +118,11 @@ export default function AdminImport() {
 
   return (
     <div className="container py-4">
-      <h1 className="mb-3">Importar productos (Sheet → Firestore)</h1>
+      {/* Header con volver */}
+      <div className="d-flex justify-content-between align-items-center mb-3">
+        <h4 className="m-0">Importar productos (Sheet → Firestore)</h4>
+        <Link to="/admin" className="btn btn-outline-secondary">Volver al panel</Link>
+      </div>
 
       <div className="card p-3 mb-3">
         <h5 className="mb-2">Paso 1: URL del CSV publicado</h5>
@@ -111,7 +131,7 @@ export default function AdminImport() {
           className="form-control mb-2"
           placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?output=csv"
           value={csvUrl}
-          onChange={(e) => setCsvUrl(e.target.value)}
+          onChange={(e) => { touchAdminSession(); setCsvUrl(e.target.value); }}
         />
         <button
           className="btn btn-outline-primary"

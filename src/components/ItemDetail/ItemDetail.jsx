@@ -1,5 +1,8 @@
+// src/components/ItemDetail/ItemDetail.jsx
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { buildImageCandidates } from "../../utils/images";
+import { formatARS } from "../../utils/pricing";
 import "./ItemDetail.css";
 import { useCartContext as useCart } from "../../context/CartContext.jsx";
 
@@ -63,7 +66,7 @@ export default function ItemDetail({ product }) {
     if (!addItem || !canAdd) return;
     setAdding(true);
     try {
-      // ✅ Siempre incluimos el color dentro del item
+      // Enviamos el color dentro del item para que el carrito separe por variante
       addItem({ ...product, color }, qty);
       setOk(true);
     } catch (e) {
@@ -75,6 +78,19 @@ export default function ItemDetail({ product }) {
 
   return (
     <div className="container py-3">
+      {/* Botones volver */}
+      <div className="d-flex gap-2 mb-3">
+        <Link to="/" className="btn btn-outline-secondary btn-sm">← Volver al inicio</Link>
+        {categoria && (
+          <Link
+            to={`/category/${encodeURIComponent(categoria)}`}
+            className="btn btn-outline-secondary btn-sm"
+          >
+            ← Volver a {categoria}
+          </Link>
+        )}
+      </div>
+
       <div className="row g-4">
         <div className="col-12 col-md-6">
           <div className="card position-relative">
@@ -102,10 +118,10 @@ export default function ItemDetail({ product }) {
 
           <div className="d-flex align-items-center justify-content-between mb-3">
             <small className="text-muted">Stock: {stock}</small>
-            <strong className="fs-4">${price.toLocaleString("es-AR")}</strong>
+            <strong className="fs-4">{formatARS(price)}</strong>
           </div>
 
-          {coloresArr.length > 0 && (
+          {canChooseColor && (
             <div className="mb-3">
               <label className="form-label fw-semibold">Color</label>
               <div className="d-flex flex-wrap gap-2">

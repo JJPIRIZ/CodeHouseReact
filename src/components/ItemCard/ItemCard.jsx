@@ -1,7 +1,9 @@
+// src/components/ItemCard/ItemCard.jsx
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { getProductHref } from "../../services/productsService";
 import { buildImageCandidates } from "../../utils/images";
+import { formatARS } from "../../utils/pricing";
 import "./ItemCard.css";
 
 function parseColores(input) {
@@ -86,7 +88,7 @@ export default function ItemCard({ product }) {
           <small className="text-muted">
             {sinStock ? "Sin stock" : `Stock: ${stock}`}
           </small>
-          <strong className="fs-6">${price.toLocaleString("es-AR")}</strong>
+          <strong className="fs-6">{formatARS(price)}</strong>
         </div>
 
         <div className="mt-2">
