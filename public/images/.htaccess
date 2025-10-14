@@ -1,0 +1,83 @@
+# =========================
+# MasTecno - React SPA
+# Ubicación: /public_html/MasTecno/.htaccess
+# =========================
+
+# Evita conflictos de negociación de contenido (MultiViews)
+Options -MultiViews
+
+# -------------------------
+# Redirección a HTTPS
+# -------------------------
+# (recomendado; comentá este bloque si tu hosting ya fuerza HTTPS globalmente)
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # Si NO está en HTTPS, redirige a HTTPS
+  RewriteCond %{HTTPS} !=on
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]
+</IfModule>
+
+# -------------------------
+# SPA Fallback a index.html
+# -------------------------
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /MasTecno/
+
+  # Si el recurso existe (archivo o carpeta), servirlo
+  RewriteCond %{REQUEST_FILENAME} -f [OR]
+  RewriteCond %{REQUEST_FILENAME} -d
+  RewriteRule ^ - [L]
+
+  # Redirección canónica /MasTecno -> /MasTecno/
+  RewriteCond %{REQUEST_URI} ^/MasTecno$
+  RewriteRule ^MasTecno$ /MasTecno/ [R=301,L]
+
+  # Todo lo demás -> index.html (history API fallback)
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# Alternativa simple (si tu Apache la soporta):
+# FallbackResource /MasTecno/index.html
+
+# -------------------------
+# Cache: index sin cache, assets con cache largo
+# -------------------------
+<IfModule mod_headers.c>
+  # index.html sin cache (toma siempre el build más nuevo)
+  <FilesMatch "^index\.html$">
+    FileETag None
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+    Header set Pragma "no-cache"
+    Header set Expires "0"
+  </FilesMatch>
+
+  # Archivos estáticos versionados (Vite) con cache largo e immutable
+  <FilesMatch "\.(js|css|png|jpg|jpeg|gif|svg|webp|ico|woff2?|ttf|eot)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+</IfModule>
+
+# -------------------------
+# Headers de seguridad básicos
+# -------------------------
+<IfModule mod_headers.c>
+  Header set X-Content-Type-Options "nosniff"
+  Header set X-Frame-Options "SAMEORIGIN"
+  Header set Referrer-Policy "strict-origin-when-cross-origin"
+  Header set Permissions-Policy "geolocation=(), microphone=(), camera=()"
+  # Si tu sitio no usa inline scripts/styles, podés agregar CSP más estricta:
+  # Header set Content-Security-Policy "default-src 'self'; img-src 'self' data: https:; font-src 'self' data:; script-src 'self'; style-src 'self'"
+</IfModule>
+
+# -------------------------
+# (Opcional) compresión gzip/brotli si están disponibles
+# -------------------------
+# <IfModule mod_deflate.c>
+#   AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css
+#   AddOutputFilterByType DEFLATE application/javascript application/json application/xml
+# </IfModule>
+# <IfModule mod_brotli.c>
+#   AddOutputFilterByType BROTLI_COMPRESS text/html text/plain text/xml text/css
+#   AddOutputFilterByType BROTLI_COMPRESS application/javascript application/json application/xml
+# </IfModule>

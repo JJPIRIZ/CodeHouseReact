@@ -1,6 +1,5 @@
-// src/components/ItemListContainer/ItemListContainer.jsx
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { getProductos, getProductsByCategory } from "../../services/productsService";
 import ItemCard from "../ItemCard/ItemCard";
 import "./ItemListContainer.css";
@@ -16,7 +15,7 @@ function slug(s) {
   return norm(s).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
-export default function ItemListContainer({ greeting }) {
+export default function ItemListContainer() {
   const { categoryId } = useParams();
   const wantedCat = useMemo(
     () => (categoryId ? decodeURIComponent(categoryId) : null),
@@ -93,36 +92,80 @@ export default function ItemListContainer({ greeting }) {
     return list;
   }, [productos, search, order]);
 
+  const hasFilters = search !== "" || order !== "none";
+
+  const handleClearFilters = () => {
+    setSearch("");
+    setOrder("none");
+    // document.querySelector(".filters-sticky")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   return (
     <div className="container py-3">
-      {greeting && <h2 className="mb-3">{greeting}</h2>}
+      {/* 🧭 Breadcrumb (solo si hay categoría) */}
+      {wantedCat && (
+        <nav aria-label="breadcrumb" className="mb-2">
+          <ol className="breadcrumb mb-0">
+            <li className="breadcrumb-item">
+              <Link to="/">Inicio</Link>
+            </li>
+            <li className="breadcrumb-item active" aria-current="page">
+              {wantedCat}
+            </li>
+          </ol>
+        </nav>
+      )}
 
-      {/* 🔎 Barra de búsqueda + orden */}
-      <div className="row g-2 align-items-end mb-3">
-        <div className="col-12 col-md-8">
-          <label htmlFor="search" className="form-label mb-1">Buscar</label>
-          <input
-            id="search"
-            className="form-control"
-            placeholder="Nombre, categoría o color…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-        <div className="col-12 col-md-4">
-          <label htmlFor="order" className="form-label mb-1">Ordenar</label>
-          <select
-            id="order"
-            className="form-select"
-            value={order}
-            onChange={(e) => setOrder(e.target.value)}
-          >
-            <option value="none">Sin ordenar</option>
-            <option value="price_asc">Precio: menor a mayor</option>
-            <option value="price_desc">Precio: mayor a menor</option>
-          </select>
+      {/* 🔎 Barra de búsqueda + orden (sticky) */}
+      <div className="filters-sticky mb-2">
+        <div className="row g-2 align-items-end">
+          <div className="col-12 col-md-6">
+            <label htmlFor="search" className="form-label mb-1">Buscar</label>
+            <input
+              id="search"
+              className="form-control"
+              placeholder="Nombre, categoría o color…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          <div className="col-8 col-md-4">
+            <label htmlFor="order" className="form-label mb-1">Ordenar</label>
+            <select
+              id="order"
+              className="form-select"
+              value={order}
+              onChange={(e) => setOrder(e.target.value)}
+            >
+              <option value="none">Sin ordenar</option>
+              <option value="price_asc">Precio: menor a mayor</option>
+              <option value="price_desc">Precio: mayor a menor</option>
+            </select>
+          </div>
+
+          {hasFilters && (
+            <div className="col-4 col-md-2 d-grid">
+              <button
+                type="button"
+                className="btn btn-outline-secondary btn-clear-filters"
+                onClick={handleClearFilters}
+                aria-label="Limpiar búsqueda y orden"
+                title="Limpiar búsqueda y orden"
+              >
+                Limpiar
+              </button>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* 📊 Meta de resultados */}
+      {!loading && !error && (
+        <div className="results-meta small text-muted mb-3">
+          Mostrando <strong>{display.length}</strong> de <strong>{productos.length}</strong> productos
+        </div>
+      )}
 
       {loading && <div className="alert alert-secondary">Cargando…</div>}
       {!loading && error && <div className="alert alert-danger">{error}</div>}

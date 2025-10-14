@@ -1,10 +1,53 @@
-.item-list-container {
-  padding: 2rem;
-  text-align: center;
+/* 🧭 Breadcrumb prolijo */
+.breadcrumb {
+  background: transparent;
+  padding: 0.25rem 0;
+  margin-bottom: 0.25rem;
+}
+.breadcrumb .breadcrumb-item a { text-decoration: none; }
+.breadcrumb .breadcrumb-item a:hover { text-decoration: underline; }
+
+/* 🔎 Controles de búsqueda/orden */
+#search::placeholder { font-style: italic; opacity: 0.7; }
+.form-label { font-weight: 600; margin-bottom: 0.25rem; }
+
+/* 📌 Contenedor sticky para filtros */
+:root {
+  /* Ajustá esta variable si tu navbar es más alta o más baja */
+  --navbar-height: 80px;
 }
 
-.item-list-container h2 {
-  font-size: 2rem;
-  font-weight: 600;
-  color: #1e3c72;
+.filters-sticky {
+  position: sticky;
+  top: var(--navbar-height);
+  z-index: 1000;              /* > contenido (0) y < navbar/dropdown */
+  background: #fff;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #e9ecef;
+  border-radius: 0.5rem;
+  box-shadow: 0 3px 12px rgba(0,0,0,0.06);
+}
+
+/* ℹ️ Meta de resultados */
+.results-meta {
+  padding-left: 0.25rem;
+}
+
+/* 📦 Grilla de cards: separaciones consistentes */
+.row.g-3 > [class*="col"] { display: flex; }
+
+/* Mensajes de estado */
+.alert { margin-top: 0.5rem; }
+
+/* Botón limpiar: altura pareja con inputs */
+.btn-clear-filters {
+  height: 38px;            /* coincide con .form-control y .form-select */
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+/* Pequeño refinamiento en móviles */
+@media (max-width: 576px) {
+  :root { --navbar-height: 72px; }
+  .btn-clear-filters { height: 42px; }
 }

@@ -30,5 +30,5 @@ header {
   z-index: 1030;
 }
 
-.custom-navbar { position: relative; z-index: 1030; }
-.custom-navbar .dropdown-menu { z-index: 1040; }
+.custom-navbar { position: relative; z-index: 1060; }
+.custom-navbar .dropdown-menu { z-index: 1070; }
