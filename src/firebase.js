@@ -7,22 +7,44 @@ import {
   writeBatch, serverTimestamp,
   query, where, orderBy, limit as qLimit,
 } from "firebase/firestore";
-
-// 👇 IMPORTS QUE FALTABAN (Storage + Auth)
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getAuth, signInAnonymously } from "firebase/auth";
 
-// Config pública (usá la de tu proyecto)
-// ⚠️ Verificá en Firebase Console si tu bucket es "...appspot.com".
-// Si es así, cambiá la línea de storageBucket por "<project-id>.appspot.com".
+/** Helpers de ENV (Vite) */
+const ENV = {
+  apiKey: import.meta.env.VITE_FB_API_KEY,
+  authDomain: import.meta.env.VITE_FB_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FB_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FB_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FB_MSG_SENDER_ID,
+  appId: import.meta.env.VITE_FB_APP_ID,
+};
+
+function assertEnv(obj) {
+  const missing = Object.entries(obj)
+    .filter(([, v]) => !v || String(v).trim() === "")
+    .map(([k]) => k);
+  if (missing.length) {
+    // Lanzamos error sólo en dev para ayudarte a detectar faltantes
+    if (import.meta.env.DEV) {
+      throw new Error(`[firebase] Faltan variables de entorno: ${missing.join(", ")}`);
+    }
+    console.warn("[firebase] Variables de entorno incompletas:", missing);
+  }
+}
+assertEnv(ENV);
+
+// Normalizamos el bucket si alguien puso firebasestorage.app por error
+const normalizedBucket = String(ENV.storageBucket || "")
+  .replace(/\.firebasestorage\.app$/i, ".appspot.com");
+
 const firebaseConfig = {
-  apiKey: "AIzaSyDbItCrd70jy677E-OeUDt5LMXVTA6ovcU",
-  authDomain: "mastecno-32016.firebaseapp.com",
-  projectId: "mastecno-32016",
-  //storageBucket: "mastecno-32016.firebasestorage.app", // ⇐ Cambiá a mastecno-32016.appspot.com si tu consola dice eso
-  storageBucket: "mastecno-32016.appspot.com",
-  messagingSenderId: "180304289577",
-  appId: "1:180304289577:web:cfbeafce321f0a37796138",
+  apiKey: ENV.apiKey,
+  authDomain: ENV.authDomain,
+  projectId: ENV.projectId,
+  storageBucket: normalizedBucket,
+  messagingSenderId: ENV.messagingSenderId,
+  appId: ENV.appId,
 };
 
 const app = initializeApp(firebaseConfig);
@@ -62,7 +84,7 @@ export async function setOne(col, id, data) {
 
 export async function getOne(col, id) {
   const safeId = String(id ?? "").trim();
-  if (!safeId) return null; // evita "Invalid document reference"
+  if (!safeId) return null;
   const snap = await getDoc(doc(db, col, safeId));
   return snap.exists() ? { id: snap.id, ...snap.data() } : null;
 }
@@ -89,7 +111,7 @@ export async function getAllSafe(col, opts = {}) {
     const snap = await getDocs(getColRef(col));
     let out = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 
-    // Filtros simples == (fallback client-side)
+    // Filtros simples == (client-side)
     for (const [f, op, v] of whereEq) {
       if (op === "==" || op === "equal" || op === "eq") {
         out = out.filter((row) => String(row?.[f] ?? "") === String(v ?? ""));
@@ -121,7 +143,7 @@ export async function removeOne(col, id) {
   await deleteDoc(doc(db, col, safeId));
 }
 
-// --------- Storage + Auth (para subir imágenes) ---------
+// --------- Storage + Auth ---------
 export const storage = getStorage(app);
 const auth = getAuth(app);
 
