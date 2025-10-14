@@ -8,12 +8,14 @@ import {
   setDoc,
   deleteDoc,
   serverTimestamp,
+  deleteField,
 } from "firebase/firestore";
 import { db } from "../firebase";
 import Swal from "sweetalert2";
 import { slugify, removeDiacritics } from "../utils/strings";
 import { formatARS } from "../utils/pricing";
 import { isAdminSessionValid, touchAdminSession } from "../utils/adminSession";
+import { uploadToPhpEndpoint } from "../services/uploader";
 
 // ----------------- helpers -----------------
 function norm(s) {
@@ -119,7 +121,9 @@ export default function AdminProducts() {
     const needle = norm(q);
     if (needle) {
       list = list.filter((p) => {
-        const blob = `${norm(p.nombre)} ${norm(p.categoria)} ${norm(coloresToInput(p.colores))} ${norm(p.id)}`;
+        const blob = `${norm(p.nombre)} ${norm(p.categoria)} ${norm(
+          coloresToInput(p.colores)
+        )} ${norm(p.id)}`;
         return blob.includes(needle);
       });
     }
@@ -139,6 +143,9 @@ export default function AdminProducts() {
     coloresInput: "",
   });
 
+  const [imageFile, setImageFile] = useState(null);     // archivo nuevo (opcional)
+  const [imagePreview, setImagePreview] = useState(""); // preview local del archivo
+
   const openNew = () => {
     touchAdminSession();
     setEditing(false);
@@ -151,6 +158,8 @@ export default function AdminProducts() {
       precioUnitario: 0,
       coloresInput: "",
     });
+    setImageFile(null);
+    setImagePreview("");
     setShowModal(true);
   };
 
@@ -166,6 +175,8 @@ export default function AdminProducts() {
       precioUnitario: Number(p.precioUnitario ?? 0),
       coloresInput: coloresToInput(p.colores),
     });
+    setImageFile(null);
+    setImagePreview("");
     setShowModal(true);
   };
 
@@ -187,6 +198,25 @@ export default function AdminProducts() {
     }
   };
 
+  const onChangeFile = (e) => {
+    touchAdminSession();
+    const file = e.target.files?.[0] || null;
+    setImageFile(file || null);
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setImagePreview(url);
+    } else {
+      setImagePreview("");
+    }
+  };
+
+  const removeImage = () => {
+    touchAdminSession();
+    setImageFile(null);
+    setImagePreview("");
+    // No hay campo imagenRaw, nada que limpiar en el form
+  };
+
   const onSave = async (e) => {
     e.preventDefault();
     touchAdminSession();
@@ -196,6 +226,7 @@ export default function AdminProducts() {
       Swal.fire({ icon: "warning", text: "Completá al menos ID y Nombre." });
       return;
     }
+
     const payload = {
       id,
       nombre,
@@ -204,9 +235,16 @@ export default function AdminProducts() {
       precioUnitario: Math.max(0, Number(form.precioUnitario || 0)),
       colores: parseColoresInput(form.coloresInput),
       updatedAt: serverTimestamp(),
+      // Nos aseguramos de NO dejar rastro de imagenRaw
+      imagenRaw: deleteField(),
     };
 
     try {
+      // Si hay archivo, subimos como /images/<id>.jpg (se resuelve por nombre en el front)
+      if (imageFile) {
+        await uploadToPhpEndpoint(imageFile, id);
+      }
+
       await setDoc(doc(db, "productos", id), payload, { merge: true });
       Swal.fire({
         icon: "success",
@@ -217,7 +255,7 @@ export default function AdminProducts() {
       load();
     } catch (e) {
       console.error("[AdminProducts] save error:", e);
-      Swal.fire({ icon: "error", text: "No se pudo guardar el producto." });
+      Swal.fire({ icon: "error", text: e?.message || "No se pudo guardar el producto." });
     }
   };
 
@@ -307,7 +345,7 @@ export default function AdminProducts() {
               <th>Stock</th>
               <th>Precio</th>
               <th>Colores</th>
-              <th style={{ width: 160 }}></th>
+              <th style={{ width: 200 }}></th>
             </tr>
           </thead>
           <tbody>
@@ -445,6 +483,37 @@ export default function AdminProducts() {
               onChange={onChange}
               placeholder="Blanco, Negro, Azul"
             />
+          </div>
+
+          {/* Imagen */}
+          <div className="col-md-12">
+            <label className="form-label">Imagen del producto</label>
+            <input
+              type="file"
+              className="form-control"
+              accept="image/*"
+              onChange={onChangeFile}
+            />
+            <div className="form-text">
+              Se guardará en <code>/images/&lt;id&gt;.jpg</code> en tu hosting y el front la usará automáticamente.
+            </div>
+
+            <div className="d-flex align-items-center gap-3 mt-2">
+              {imagePreview ? (
+                <>
+                  <img
+                    src={imagePreview}
+                    alt="preview"
+                    style={{ width: 96, height: 96, objectFit: "cover", borderRadius: 8 }}
+                  />
+                  <button type="button" className="btn btn-sm btn-outline-danger" onClick={removeImage}>
+                    Quitar imagen
+                  </button>
+                </>
+              ) : (
+                <span className="text-muted">Sin imagen (opcional)</span>
+              )}
+            </div>
           </div>
 
           <div className="col-12 d-flex justify-content-end gap-2">
